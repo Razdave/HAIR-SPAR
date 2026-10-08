@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-canvas: #faf8f5;
+    --plum-primary: #4e273e;
+    --plum-dark: #37182a;
+    --plum-light: #6a3a57;
+    --blush-accent: #f2ddd2;
+    --blush-light: #fbf0ea;
+    --sand-border: #ece5dc;
+    --text-main: #1f1d1b;
+    --text-muted: #78716c;
+  }
+
+  body {
+    background-color: var(--bg-canvas);
+    color: var(--text-main);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1, h2, h3, .font-editorial {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    letter-spacing: -0.03em;
+  }
+
+  .font-serif-luxury {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+}
+
+/* Custom view-finder focus crosshairs */
+.viewfinder-crosshair {
+  position: relative;
+}
+
+/* Subtle luxury grain / backdrop */
+::selection {
+  background-color: #4e273e;
+  color: #faf8f5;
+}
+

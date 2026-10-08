@@ -1,0 +1,7 @@
+{
+  "name": "aurélle — Med Spa & Hair Salon",
+  "description": "Editorial wellness sanctuary, medical aesthetics, and luxury hair atelier with appointment booking and integrated patient consultation forms.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
