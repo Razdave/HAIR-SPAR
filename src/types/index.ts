@@ -54,6 +54,7 @@ export interface AppointmentRecord {
   addOns: AddOnOption[];
   totalPrice: number;
   totalDuration: number;
+  bookingStatus: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   intakeStatus: 'pending' | 'completed';
   createdAt: string;
 }

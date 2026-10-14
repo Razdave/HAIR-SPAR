@@ -46,7 +46,7 @@ export const Hero: React.FC<HeroProps> = ({
               <div className="flex items-center gap-6 mb-8 max-w-md">
                 <p className="text-base sm:text-lg text-[#57534E] font-light leading-relaxed">
                   Feel good in your skin. <br />
-                  Even better in yourself.
+                  Even Glow in yourself.
                 </p>
 
                 {/* Round arrow button matching screenshot */}

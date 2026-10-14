@@ -108,6 +108,7 @@ export const Footer: React.FC<FooterProps> = ({
             © {new Date().getFullYear()} aurélle wellness & aesthetics llc. All rights reserved.
           </div>
           <div className="flex items-center gap-6">
+            <a href="/admin" className="hover:text-white transition-colors">Staff login</a>
             <span>HIPAA & GDPR Compliant Medical Records</span>
             <span>·</span>
             <span>Board-Certified Oversight</span>

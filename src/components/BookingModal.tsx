@@ -8,7 +8,7 @@ interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
   preselectedServiceId?: string;
-  onBookingConfirmed: (appointment: AppointmentRecord) => void;
+  onBookingConfirmed: (appointment: AppointmentRecord) => Promise<void>;
   onOpenConsultationForm: (type: 'medical-aesthetic' | 'hair-trichology', ref: string) => void;
 }
 
@@ -36,6 +36,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   // Confirmed record
   const [confirmedBooking, setConfirmedBooking] = useState<AppointmentRecord | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
 
   // Calendar dates generation
   const today = new Date();
@@ -123,8 +125,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   const { monthName, days } = renderCalendarDays();
 
-  const handleConfirm = (e: React.FormEvent) => {
+  const handleConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
+
     const refNum = `AUR-${Math.floor(1000 + Math.random() * 9000)}`;
     const newAppointment: AppointmentRecord = {
       id: `apt-${Date.now()}`,
@@ -143,13 +147,22 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       addOns: selectedAddOns,
       totalPrice,
       totalDuration,
+      bookingStatus: 'pending',
       intakeStatus: 'pending',
       createdAt: new Date().toISOString(),
     };
 
-    setConfirmedBooking(newAppointment);
-    onBookingConfirmed(newAppointment);
-    setStep(5); // Confirmation screen
+    setIsSaving(true);
+    setBookingError(null);
+    try {
+      await onBookingConfirmed(newAppointment);
+      setConfirmedBooking(newAppointment);
+      setStep(5);
+    } catch (error) {
+      setBookingError(error instanceof Error ? error.message : 'Unable to save your appointment.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const downloadCalendarFile = () => {
@@ -219,6 +232,11 @@ END:VCALENDAR`;
 
         {/* Content Area */}
         <div className="p-5 sm:p-7 overflow-y-auto flex-1">
+          {bookingError && (
+            <p role="alert" className="mb-5 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              {bookingError}
+            </p>
+          )}
           
           {/* STEP 1: Select Ritual & Category */}
           {step === 1 && (
@@ -618,9 +636,10 @@ END:VCALENDAR`;
                 </button>
                 <button
                   type="submit"
+                  disabled={isSaving}
                   className="px-6 py-2.5 text-xs font-semibold text-white bg-[#4E273E] hover:bg-[#37182A] rounded transition-colors shadow cursor-pointer"
                 >
-                  Confirm & Reserve Sanctuary Visit ↗
+                  {isSaving ? 'Saving…' : 'Confirm & Reserve Sanctuary Visit ↗'}
                 </button>
               </div>
             </form>

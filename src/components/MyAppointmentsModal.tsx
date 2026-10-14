@@ -6,7 +6,7 @@ interface MyAppointmentsModalProps {
   isOpen: boolean;
   onClose: () => void;
   appointments: AppointmentRecord[];
-  onCancelAppointment: (id: string) => void;
+  onCancelAppointment: (id: string) => Promise<void>;
   onOpenConsultation: (type: 'medical-aesthetic' | 'hair-trichology', ref: string) => void;
 }
 
@@ -17,6 +17,22 @@ export const MyAppointmentsModal: React.FC<MyAppointmentsModalProps> = ({
   onCancelAppointment,
   onOpenConsultation,
 }) => {
+  const [cancellingAppointmentId, setCancellingAppointmentId] = React.useState<string | null>(null);
+  const [cancelError, setCancelError] = React.useState<string | null>(null);
+
+  const handleCancel = async (id: string) => {
+    if (cancellingAppointmentId) return;
+    setCancellingAppointmentId(id);
+    setCancelError(null);
+    try {
+      await onCancelAppointment(id);
+    } catch (error) {
+      setCancelError(error instanceof Error ? error.message : 'Unable to cancel appointment.');
+    } finally {
+      setCancellingAppointmentId(null);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -43,6 +59,11 @@ export const MyAppointmentsModal: React.FC<MyAppointmentsModalProps> = ({
 
         {/* Content */}
         <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-4">
+          {cancelError && (
+            <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+              {cancelError}
+            </p>
+          )}
           {appointments.length === 0 ? (
             <div className="text-center py-12 text-[#78716C]">
               <Calendar className="w-10 h-10 mx-auto mb-3 text-[#A8A29E]" />
@@ -67,6 +88,15 @@ export const MyAppointmentsModal: React.FC<MyAppointmentsModalProps> = ({
                       <h3 className="text-base font-medium text-[#1F1D1B]">
                         {apt.serviceName}
                       </h3>
+                      <span className={`mt-1 inline-flex rounded px-2 py-0.5 text-[10px] font-medium ${
+                        apt.bookingStatus === 'confirmed' || apt.bookingStatus === 'completed'
+                          ? 'bg-[#E8F5E9] text-[#2E7D32]'
+                          : 'bg-[#FAF0EA] text-[#8E3B5C]'
+                      }`}>
+                        {apt.bookingStatus === 'pending'
+                          ? 'Awaiting confirmation'
+                          : apt.bookingStatus.charAt(0).toUpperCase() + apt.bookingStatus.slice(1)}
+                      </span>
                     </div>
                     <span className="font-mono text-base font-medium text-[#4E273E]">
                       ${apt.totalPrice}
@@ -123,12 +153,13 @@ export const MyAppointmentsModal: React.FC<MyAppointmentsModalProps> = ({
                     </div>
 
                     <button
-                      onClick={() => onCancelAppointment(apt.id)}
-                      className="text-xs text-[#B91C1C] hover:text-[#7F1D1D] flex items-center gap-1 cursor-pointer"
+                      onClick={() => void handleCancel(apt.id)}
+                      disabled={cancellingAppointmentId === apt.id}
+                      className="text-xs text-[#B91C1C] hover:text-[#7F1D1D] disabled:opacity-50 flex items-center gap-1 cursor-pointer"
                       title="Cancel this appointment"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      <span>Cancel</span>
+                      <span>{cancellingAppointmentId === apt.id ? 'Cancelling…' : 'Cancel'}</span>
                     </button>
                   </div>
                 </div>

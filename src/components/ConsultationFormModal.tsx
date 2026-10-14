@@ -7,7 +7,7 @@ interface ConsultationFormModalProps {
   onClose: () => void;
   initialType?: 'medical-aesthetic' | 'hair-trichology';
   linkedAppointmentRef?: string;
-  onSaveIntake: (type: 'medical-aesthetic' | 'hair-trichology', data: any) => void;
+  onSaveIntake: (type: 'medical-aesthetic' | 'hair-trichology', data: any) => Promise<void>;
 }
 
 export const ConsultationFormModal: React.FC<ConsultationFormModalProps> = ({
@@ -20,6 +20,8 @@ export const ConsultationFormModal: React.FC<ConsultationFormModalProps> = ({
   const [formType, setFormType] = useState<'medical-aesthetic' | 'hair-trichology'>(initialType);
   const [step, setStep] = useState<number>(1);
   const [submitted, setSubmitted] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Sync initial type when opened
   useEffect(() => {
@@ -27,6 +29,7 @@ export const ConsultationFormModal: React.FC<ConsultationFormModalProps> = ({
       setFormType(initialType);
       setStep(1);
       setSubmitted(false);
+      setSubmitError(null);
     }
   }, [initialType, isOpen]);
 
@@ -127,21 +130,31 @@ export const ConsultationFormModal: React.FC<ConsultationFormModalProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
+
     let sigUrl = '';
     if (canvasRef.current) {
       sigUrl = canvasRef.current.toDataURL();
     }
 
-    if (formType === 'medical-aesthetic') {
-      const payload = { ...medData, signatureDataUrl: sigUrl };
-      onSaveIntake('medical-aesthetic', payload);
-    } else {
-      const payload = { ...hairData, signatureDataUrl: sigUrl };
-      onSaveIntake('hair-trichology', payload);
+    setIsSaving(true);
+    setSubmitError(null);
+    try {
+      if (formType === 'medical-aesthetic') {
+        const payload = { ...medData, signatureDataUrl: sigUrl };
+        await onSaveIntake('medical-aesthetic', payload);
+      } else {
+        const payload = { ...hairData, signatureDataUrl: sigUrl };
+        await onSaveIntake('hair-trichology', payload);
+      }
+      setSubmitted(true);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Unable to update your intake status.');
+    } finally {
+      setIsSaving(false);
     }
-    setSubmitted(true);
   };
 
   if (!isOpen) return null;
@@ -236,7 +249,7 @@ export const ConsultationFormModal: React.FC<ConsultationFormModalProps> = ({
                 Consultation Intake Verified
               </h3>
               <p className="text-sm text-[#6B635C] max-w-md mb-6 leading-relaxed">
-                Thank you, <strong>{formType === 'medical-aesthetic' ? medData.fullName || 'Valued Client' : hairData.fullName || 'Valued Client'}</strong>. Your clinical history, safety contraindications, and treatment consent are securely saved and synced with our practitioners.
+                Thank you, <strong>{formType === 'medical-aesthetic' ? medData.fullName || 'Valued Client' : hairData.fullName || 'Valued Client'}</strong>. Your intake form is complete.
               </p>
               
               <div className="bg-white border border-[#ECE5DC] rounded-xl p-4 w-full max-w-md text-left text-xs space-y-2 mb-8">
@@ -267,7 +280,12 @@ export const ConsultationFormModal: React.FC<ConsultationFormModalProps> = ({
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
-              
+                {submitError && (
+                  <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                    {submitError}
+                  </p>
+                )}
+               
               {/* Stepper tracker */}
               <div className="flex items-center justify-between text-xs font-mono text-[#78716C] pb-3 border-b border-[#ECE5DC]">
                 <span>STEP {step} OF 3</span>
@@ -716,10 +734,10 @@ export const ConsultationFormModal: React.FC<ConsultationFormModalProps> = ({
                     </button>
                     <button
                       type="submit"
-                      disabled={!(formType === 'medical-aesthetic' ? medData.clientConsent : hairData.clientConsent)}
+                      disabled={isSaving || !(formType === 'medical-aesthetic' ? medData.clientConsent : hairData.clientConsent)}
                       className="px-6 py-2.5 text-xs font-semibold text-white bg-[#4E273E] hover:bg-[#37182A] disabled:opacity-50 disabled:pointer-events-none rounded transition-colors shadow cursor-pointer"
                     >
-                      Verify & Submit Consultation Form ↗
+                      {isSaving ? 'Saving…' : 'Verify & Submit Consultation Form ↗'}
                     </button>
                   </div>
                 </div>

@@ -18,53 +18,42 @@ import { ConsultationFormModal } from './components/ConsultationFormModal';
 import { ServiceDetailModal } from './components/ServiceDetailModal';
 import { MyAppointmentsModal } from './components/MyAppointmentsModal';
 import { ConciergeConsultModal } from './components/ConciergeConsultModal';
+import { AdminDashboard } from './components/AdminDashboard';
 import { SERVICES } from './data/services';
 import { ServiceItem, AppointmentRecord } from './types';
+import {
+  completeAppointmentIntake,
+  createAppointment,
+  deleteAppointment,
+  fetchAppointments,
+} from './lib/appointments';
 
-export default function App() {
-  // Appointments state with localStorage persistence
-  const [appointments, setAppointments] = useState<AppointmentRecord[]>(() => {
-    try {
-      const saved = localStorage.getItem('aurelle_appointments');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error(e);
-    }
-    // Default initial sample appointment to show off the system immediately
-    return [
-      {
-        id: 'apt-sample-1',
-        referenceNumber: 'AUR-4821',
-        serviceId: 'hair-couture-cut',
-        serviceName: 'Couture Silhouette Cut & Styling',
-        serviceCategory: 'Hair Atelier',
-        specialistId: 'spec-chantal',
-        specialistName: 'Chantal Moreau',
-        date: '2026-10-14',
-        time: '11:30 AM',
-        clientName: 'Elena Rostova',
-        clientEmail: 'elena@example.com',
-        clientPhone: '(212) 555-0192',
-        clientNotes: 'Focus on softening ends and natural face frame.',
-        addOns: [
-          { id: 'addon-hair-mask', name: 'Deep Botanical Caviar Conditioning Mask', duration: 15, price: 38, category: 'hair' }
-        ],
-        totalPrice: 193,
-        totalDuration: 75,
-        intakeStatus: 'pending',
-        createdAt: new Date().toISOString(),
-      }
-    ];
-  });
+function PublicApp() {
+  const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
+  const [isAppointmentsLoading, setIsAppointmentsLoading] = useState(true);
+  const [appointmentError, setAppointmentError] = useState<string | null>(null);
 
-  // Sync appointments to localStorage
   useEffect(() => {
-    try {
-      localStorage.setItem('aurelle_appointments', JSON.stringify(appointments));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [appointments]);
+    let isMounted = true;
+
+    fetchAppointments()
+      .then((records) => {
+        if (isMounted) setAppointments(records);
+      })
+      .catch((error: unknown) => {
+        console.error('Unable to load appointments from Supabase.', error);
+        if (isMounted) {
+          setAppointmentError(error instanceof Error ? error.message : 'Unable to load appointments from Supabase.');
+        }
+      })
+      .finally(() => {
+        if (isMounted) setIsAppointmentsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Modal states
   const [isBookingOpen, setIsBookingOpen] = useState(false);
@@ -97,39 +86,54 @@ export default function App() {
     setIsDetailOpen(true);
   };
 
-  const handleBookingConfirmed = (newAppointment: AppointmentRecord) => {
-    setAppointments(prev => [newAppointment, ...prev]);
+  const handleBookingConfirmed = async (newAppointment: AppointmentRecord) => {
+    try {
+      await createAppointment(newAppointment);
+      setAppointments(prev => [newAppointment, ...prev]);
+      setAppointmentError(null);
+    } catch (error) {
+      console.error('Unable to save appointment to Supabase.', error);
+      setAppointmentError(error instanceof Error ? error.message : 'Unable to save appointment.');
+      throw error;
+    }
   };
 
-  const handleCancelAppointment = (id: string) => {
-    setAppointments(prev => prev.filter(a => a.id !== id));
+  const handleCancelAppointment = async (id: string) => {
+    try {
+      await deleteAppointment(id);
+      setAppointments(prev => prev.filter(appointment => appointment.id !== id));
+      setAppointmentError(null);
+    } catch (error) {
+      console.error('Unable to cancel appointment in Supabase.', error);
+      throw error;
+    }
   };
 
-  const handleSaveIntake = (type: 'medical-aesthetic' | 'hair-trichology', data: any) => {
-    // If an appointment was linked, mark it as verified/completed!
-    if (consultationLinkedRef) {
-      setAppointments(prev =>
-        prev.map(apt =>
-          apt.referenceNumber === consultationLinkedRef
-            ? { ...apt, intakeStatus: 'completed' as const }
-            : apt
-        )
-      );
-    } else {
-      // If none explicitly linked, mark the newest matching type
-      setAppointments(prev => {
-        let updated = false;
-        return prev.map(apt => {
-          if (!updated && apt.intakeStatus === 'pending') {
-            const isHair = apt.serviceCategory.toLowerCase().includes('hair') || apt.serviceCategory.toLowerCase().includes('scalp');
-            if ((type === 'hair-trichology' && isHair) || (type === 'medical-aesthetic' && !isHair)) {
-              updated = true;
-              return { ...apt, intakeStatus: 'completed' as const };
-            }
-          }
-          return apt;
-        });
+  const handleSaveIntake = async (type: 'medical-aesthetic' | 'hair-trichology', _data: unknown) => {
+    const appointment = consultationLinkedRef
+      ? appointments.find(record => record.referenceNumber === consultationLinkedRef)
+      : appointments.find(record => {
+        if (record.intakeStatus !== 'pending') return false;
+        const isHair = record.serviceCategory.toLowerCase().includes('hair')
+          || record.serviceCategory.toLowerCase().includes('scalp');
+        return (type === 'hair-trichology' && isHair) || (type === 'medical-aesthetic' && !isHair);
       });
+
+    if (!appointment) {
+      throw new Error('No matching appointment was found. Book a visit before submitting the intake form.');
+    }
+    if (appointment.intakeStatus === 'completed') return;
+
+    try {
+      await completeAppointmentIntake(appointment.id);
+      setAppointments(prev => prev.map(record => (
+        record.id === appointment.id ? { ...record, intakeStatus: 'completed' } : record
+      )));
+      setAppointmentError(null);
+    } catch (error) {
+      console.error('Unable to update appointment intake status in Supabase.', error);
+      setAppointmentError(error instanceof Error ? error.message : 'Unable to update intake status.');
+      throw error;
     }
   };
 
@@ -137,6 +141,20 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#1F1D1B] flex flex-col font-sans selection:bg-[#4E273E] selection:text-white">
+      {isAppointmentsLoading && (
+        <p className="px-4 py-2 text-center text-xs text-[#57534E]" aria-live="polite">
+          Connecting to appointments…
+        </p>
+      )}
+      {appointmentError && (
+        <div role="alert" className="flex items-center justify-between gap-4 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <span>{appointmentError}</span>
+          <button type="button" onClick={() => setAppointmentError(null)} className="font-medium underline">
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* 3-Zone Top Navigation Bar */}
       <Header
         onOpenBooking={() => handleOpenBooking()}
@@ -244,4 +262,10 @@ export default function App() {
       />
     </div>
   );
+}
+
+export default function App() {
+  return window.location.pathname.replace(/\/+$/, '') === '/admin'
+    ? <AdminDashboard />
+    : <PublicApp />;
 }
